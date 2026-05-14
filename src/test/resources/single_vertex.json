@@ -1,0 +1,18 @@
+{
+  "edgeCount": 0,
+  "edgeList": [],
+  "id": "88165bb4-027f-4967-9309-a20639a22118",
+  "isDirect": true,
+  "isNamed": false,
+  "vertexCount": 1,
+  "vertexList": [
+    {
+      "color": "GRAY",
+      "id": 1,
+      "label": "1",
+      "weight": 1,
+      "xCoordinate": 1185,
+      "yCoordinate": 878
+    }
+  ]
+}

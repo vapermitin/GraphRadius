@@ -2,15 +2,17 @@ import ru.leti.wise.task.graph.model.Edge;
 import ru.leti.wise.task.graph.model.Graph;
 import ru.leti.wise.task.graph.model.Vertex;
 import ru.leti.wise.task.plugin.graph.GraphCharacteristic;
+import ru.leti.wise.task.plugin.graph.GraphProperty;
 
 import java.util.*;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
-public class GraphRadius implements GraphCharacteristic {
-    Graph graph;
-    HashMap<Integer, List<Edge>> neighbours = new HashMap<Integer, List<Edge>>();
+public class GraphRadius implements GraphProperty {
+    private Graph graph;
+    private Map<Integer, List<Edge>> neighbours = new HashMap<>();
+    private Map<Integer, Integer> idToIndex;
 
     static class Node implements Comparable<Node> {
         int vertex_id;
@@ -28,26 +30,28 @@ public class GraphRadius implements GraphCharacteristic {
     }
 
     private int[][] floyd_warshall() {
-        int vertexCount = this.graph.getVertexCount();
+        int vertexCount = graph.getVertexCount();
         int[][] dist = new int[vertexCount][vertexCount];
         for (int i = 0; i < vertexCount; i++) {
-            for (int j = 0; j < vertexCount; j++) {
-                if (i == j) {
-                    dist[i][j] = 0;
-                    continue;
-                }
-                dist[i][j] = Integer.MAX_VALUE;
-            }
+            Arrays.fill(dist[i], Integer.MAX_VALUE);
+            dist[i][i] = 0;
         }
-        for (Edge edge : this.graph.getEdgeList()) {
-            dist[edge.getSource()-1][edge.getTarget()-1] = edge.getWeight();
+
+        for (Edge edge : graph.getEdgeList()) {
+            int srcIdx = idToIndex.get(edge.getSource());
+            int tgtIdx = idToIndex.get(edge.getTarget());
+            dist[srcIdx][tgtIdx] = edge.getWeight();
         }
-        for (int i = 0; i < vertexCount; i++) {
-            for (int firstVertex = 0; firstVertex < vertexCount; firstVertex++) {
-                for (int secondVertex = 0; secondVertex < vertexCount; secondVertex++) {
-                    if (dist[firstVertex][i] == Integer.MAX_VALUE) continue;;
-                    if (dist[i][secondVertex] == Integer.MAX_VALUE) continue;
-                    dist[firstVertex][secondVertex] = min(dist[firstVertex][secondVertex], dist[firstVertex][i] + dist[i][secondVertex]);
+
+        for (int k = 0; k < vertexCount; k++) {
+            for (int i = 0; i < vertexCount; i++) {
+                if (dist[i][k] == Integer.MAX_VALUE) continue;
+                for (int j = 0; j < vertexCount; j++) {
+                    if (dist[k][j] == Integer.MAX_VALUE) continue;
+                    int newDist = dist[i][k] + dist[k][j];
+                    if (newDist < dist[i][j]) {
+                        dist[i][j] = newDist;
+                    }
                 }
             }
         }
@@ -56,60 +60,76 @@ public class GraphRadius implements GraphCharacteristic {
 
     private int dijkstra_eccentricity(Integer start) {
         PriorityQueue<Node> queue = new PriorityQueue<>();
-        HashMap<Integer, Integer> distances = new HashMap<>();
-        for (Vertex vertex : this.graph.getVertexList()) {
+        Map<Integer, Integer> distances = new HashMap<>();
+        for (Vertex vertex : graph.getVertexList()) {
             distances.put(vertex.getId(), Integer.MAX_VALUE);
         }
         distances.put(start, 0);
         queue.add(new Node(start, 0));
+
         while (!queue.isEmpty()) {
             Node node = queue.poll();
-            for (Edge neighbour : this.neighbours.get(node.vertex_id)) {
+            List<Edge> edges = neighbours.get(node.vertex_id);
+            if (edges == null) continue;
+            for (Edge neighbour : edges) {
                 int newDistance = neighbour.getWeight() + node.distance;
-                if (newDistance < distances.get(neighbour.getTarget())) {
+                Integer currentDist = distances.get(neighbour.getTarget());
+                if (currentDist != null && newDistance < currentDist) {
                     distances.put(neighbour.getTarget(), newDistance);
                     queue.offer(new Node(neighbour.getTarget(), newDistance));
                 }
             }
         }
+
         int maxDistance = 0;
-        for (Map.Entry<Integer, Integer> entry : distances.entrySet()) {
-            maxDistance = max(maxDistance, entry.getValue());
+        for (Integer dist : distances.values()) {
+            maxDistance = max(maxDistance, dist);
         }
         return maxDistance;
     }
 
     @Override
-    public int run(Graph graph) {
+    public boolean run(Graph graph) {
         this.graph = graph;
-        for (Vertex vertex : this.graph.getVertexList()) {
-            this.neighbours.put(vertex.getId(), new ArrayList<>());
+        neighbours.clear();
+        idToIndex = new HashMap<>();
+        List<Vertex> vertexList = graph.getVertexList();
+        for (int i = 0; i < vertexList.size(); i++) {
+            idToIndex.put(vertexList.get(i).getId(), i);
         }
+
+        for (Vertex vertex : vertexList) {
+            neighbours.put(vertex.getId(), new ArrayList<>());
+        }
+
         boolean hasNegativeEdges = false;
-        for (Edge edge : this.graph.getEdgeList()) {
+        for (Edge edge : graph.getEdgeList()) {
             if (edge.getWeight() < 0) hasNegativeEdges = true;
-            this.neighbours.get(edge.getSource()).add(edge);
+            List<Edge> srcEdges = neighbours.get(edge.getSource());
+            if (srcEdges != null) {
+                srcEdges.add(edge);
+            }
         }
 
         if (!hasNegativeEdges) {
             int minEccentricity = Integer.MAX_VALUE;
-            for (Vertex vertex : this.graph.getVertexList()) {
-                minEccentricity = min(minEccentricity, this.dijkstra_eccentricity(vertex.getId()));
+            for (Vertex vertex : vertexList) {
+                minEccentricity = min(minEccentricity, dijkstra_eccentricity(vertex.getId()));
             }
-            return minEccentricity;
+            return minEccentricity == 2;
         }
 
-        int[][] result_matrix = floyd_warshall();
-        int vertexCount = this.graph.getVertexCount();
+        int[][] resultMatrix = floyd_warshall();
+        int vertexCount = graph.getVertexCount();
         int radius = Integer.MAX_VALUE;
         for (int i = 0; i < vertexCount; i++) {
-            if (result_matrix[i][i] < 0) return Integer.MIN_VALUE;
+            if (resultMatrix[i][i] < 0) return false;
             int eccentricity = 0;
             for (int j = 0; j < vertexCount; j++) {
-                eccentricity = max(eccentricity, result_matrix[i][j]);
+                eccentricity = max(eccentricity, resultMatrix[i][j]);
             }
             radius = min(radius, eccentricity);
         }
-        return radius;
+        return radius == 2;
     }
 }

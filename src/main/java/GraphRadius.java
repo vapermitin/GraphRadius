@@ -1,7 +1,6 @@
 import ru.leti.wise.task.graph.model.Edge;
 import ru.leti.wise.task.graph.model.Graph;
 import ru.leti.wise.task.graph.model.Vertex;
-import ru.leti.wise.task.plugin.graph.GraphCharacteristic;
 import ru.leti.wise.task.plugin.graph.GraphProperty;
 
 import java.util.*;

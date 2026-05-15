@@ -40,7 +40,7 @@ public class GraphRadius implements GraphProperty {
         for (Edge edge : graph.getEdgeList()) {
             int srcIdx = idToIndex.get(edge.getSource());
             int tgtIdx = idToIndex.get(edge.getTarget());
-            dist[srcIdx][tgtIdx] = edge.getWeight();
+            dist[srcIdx][tgtIdx] = edge.getWeight() == 0 ? 1 : edge.getWeight();
         }
 
         for (int k = 0; k < vertexCount; k++) {
@@ -72,7 +72,8 @@ public class GraphRadius implements GraphProperty {
             List<Edge> edges = neighbours.get(node.vertex_id);
             if (edges == null) continue;
             for (Edge neighbour : edges) {
-                int newDistance = neighbour.getWeight() + node.distance;
+                int edge_weight = neighbour.getWeight() == 0 ? 1 : neighbour.getWeight();
+                int newDistance = edge_weight + node.distance;
                 Integer currentDist = distances.get(neighbour.getTarget());
                 if (currentDist != null && newDistance < currentDist) {
                     distances.put(neighbour.getTarget(), newDistance);
@@ -91,6 +92,12 @@ public class GraphRadius implements GraphProperty {
     @Override
     public boolean run(Graph graph) {
         this.graph = graph;
+        for (Edge edge : this.graph.getEdgeList()) {
+            int temp_id = edge.getSource();
+            edge.setSource(edge.getTarget());
+            edge.setTarget(temp_id);
+        }
+
         neighbours.clear();
         idToIndex = new HashMap<>();
         List<Vertex> vertexList = graph.getVertexList();
